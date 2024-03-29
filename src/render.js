@@ -9,6 +9,7 @@ export function createDom(fiber) {
         document.createTextNode('')
       : document.createElement(fiber.type); // 创建真实dom
 
+  // 在dom上更新属性，包括移除、更新、新增
   updateDom(dom, {}, fiber.props);
 
   return dom;
@@ -112,6 +113,7 @@ export function render(element, container) {
     alternate: currentRoot,
   };
   deletions = [];
+  // 下一个工作单位设置为根节点，然后requestIdleCallback中注册的workLoop就会执行
   nextUnitOfWork = wipRoot;
 }
 
@@ -127,11 +129,13 @@ function workLoop(deadline) {
     shouldYield = deadline.timeRemaining() < 1; // 在一次loop时间结束前反复调用，直到时间结束
   }
   if (!nextUnitOfWork && wipRoot) {
-    commitRoot(); // 所有fiber全部构建完之后，才能提交
+    commitRoot(); // nextUnitOfWork为空表示所有fiber全部构建完成，此时才能提交到root
   }
 
   requestIdleCallback(workLoop); // 时间结束后，等待浏览器空闲后继续调用
 }
+
+// 只要浏览器一空闲就会执行
 requestIdleCallback(workLoop);
 
 function performUnitOfWork(fiber) {
@@ -142,15 +146,6 @@ function performUnitOfWork(fiber) {
   } else {
     updateHostComponent(fiber);
   }
-  // if (!fiber.dom) {
-  //   fiber.dom = createDom(fiber); // 创建真实dom，储存在dom属性
-  // }
-
-  // 浏览器可能会打断，使用户看到不完整的UI，因此这里要删除，转移到commitWork中
-  // if (fiber.parent) {
-  //   fiber.parent.dom.appendChild(fiber.dom); // 如果有父级，就挂载到父级
-  // }
-
   // For each child we create a new fiber.
   // const elements = fiber.props.children;
   // reconcileChildren(fiber, elements);
@@ -166,6 +161,7 @@ function performUnitOfWork(fiber) {
     }
     nextFiber = nextFiber.parent; // 否则就返回父级，在下一个循环中可能会返回叔辈
   }
+  // 进行到root fiber时返回undefined
 }
 
 let wipFiber = null;
@@ -220,6 +216,7 @@ function updateHostComponent(fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber); // 创建真实dom，储存在dom属性
   }
+  // For each child we create a new fiber.
   reconcileChildren(fiber, fiber.props.children);
 }
 
@@ -278,7 +275,9 @@ function reconcileChildren(wipFiber, elements) {
     }
 
     if (index === 0) {
-      wipFiber.child = newFiber; // 如果是children中的第一个子项，父级要储存这个子项的指针，参考fiber架构图
+      // 如果是children中的第一个子项，父级要储存这个子项的指针，参考fiber架构图
+      // 这里仅设置child fiber，并不返回，返回的代码在performUnitOfWork函数里
+      wipFiber.child = newFiber;
     } else if (element) {
       prevSibling.sibling = newFiber; // prevSibling是什么，没有看懂，而且也没有使用
     }
